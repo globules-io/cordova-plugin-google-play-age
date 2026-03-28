@@ -1,6 +1,6 @@
 {
      "name": "@globules-io/cordova-plugin-google-play-age",
-     "version": "0.0.3",
+     "version": "0.1.0",
      "description": "Cordova plugin for Google Age Signals",
      "author": {
           "name": "Globules.io"

@@ -1,6 +1,6 @@
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
         id="@globules-io/cordova-plugin-google-play-age"
-        version="0.0.3">
+        version="0.1.0">
      <name>cordova-plugin-google-play-age</name>
      <description>Cordova plugin for Google Play Age Signals API (Android)</description>
      <license>MIT</license>
