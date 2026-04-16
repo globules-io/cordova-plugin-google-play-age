@@ -2,15 +2,19 @@ package io.globules.cordova.googleplayage;
 
 import android.app.Activity;
 import android.content.Context;
+import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
-import com.google.android.gms.agesignals.AgeSignalsException;
-import com.google.android.gms.agesignals.AgeSignalsManager;
-import com.google.android.gms.agesignals.AgeSignalsManagerFactory;
-import com.google.android.gms.agesignals.AgeSignalsRequest;
-import com.google.android.gms.agesignals.AgeSignalsResult;
-import com.google.android.gms.agesignals.AgeSignalsResultCallback;
+
+import com.google.android.play.agesignals.AgeSignalsException;
+import com.google.android.play.agesignals.AgeSignalsManager;
+import com.google.android.play.agesignals.AgeSignalsManagerFactory;
+import com.google.android.play.agesignals.AgeSignalsRequest;
+import com.google.android.play.agesignals.AgeSignalsResult;
+import com.google.android.play.agesignals.model.AgeSignalsVerificationStatus;
+
+import com.google.android.gms.tasks.Task;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
@@ -23,6 +27,7 @@ import java.util.Date;
 
 public class AgeSignalsPlugin extends CordovaPlugin {
 
+    private static final String TAG = "AgeSignalsPlugin";
     private static final String ACTION_CHECK_AGE_SIGNALS = "checkAgeSignals";
 
     @Override
@@ -32,7 +37,7 @@ public class AgeSignalsPlugin extends CordovaPlugin {
             return true;
         }
 
-        sendUnknownActionError(action, callbackContext);
+        sendError(callbackContext, "UNKNOWN_ACTION", "Unknown action: " + action);
         return false;
     }
 
@@ -44,109 +49,109 @@ public class AgeSignalsPlugin extends CordovaPlugin {
         }
 
         final Context context = activity.getApplicationContext();
+
+        // Soft warning only
         int playServicesStatus = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context);
         if (playServicesStatus != ConnectionResult.SUCCESS) {
-            sendError(callbackContext,
-                    "PLAY_SERVICES_UNAVAILABLE",
-                    "Google Play Services unavailable or outdated. Status: " + playServicesStatus);
-            return;
+            Log.w(TAG, "Google Play Services not fully available (status: " + playServicesStatus + ")");
         }
 
         AgeSignalsManager manager;
         try {
             manager = AgeSignalsManagerFactory.create(context);
         } catch (Throwable t) {
-            sendError(callbackContext,
-                    "MANAGER_CREATION_FAILED",
+            sendError(callbackContext, "MANAGER_CREATION_FAILED",
                     "Failed to create AgeSignalsManager: " + t.getMessage());
             return;
         }
 
-        AgeSignalsRequest request = new AgeSignalsRequest.Builder().build();
+        // Official way to create the request
+        AgeSignalsRequest request = AgeSignalsRequest.builder().build();
 
-        manager.checkAgeSignals(request, new AgeSignalsResultCallback() {
-            @Override
-            public void onSuccess(AgeSignalsResult result) {
-                JSONObject response = new JSONObject();
-                try {
-                    putNullable(response, "ageLower", result.ageLower());
-                    putNullable(response, "ageUpper", result.ageUpper());
-                    putNullable(response, "installId", result.installId());
+        Task<AgeSignalsResult> task = manager.checkAgeSignals(request);
 
-                    Date approvalDate = result.mostRecentApprovalDate();
-                    if (approvalDate != null) {
-                        response.put("mostRecentApprovalDate", approvalDate.getTime());
-                    } else {
-                        response.put("mostRecentApprovalDate", JSONObject.NULL);
-                    }
-
-                    response.put("isAgePersonalizedAdsEnabled", result.isAgePersonalizedAdsEnabled());
-                    response.put("isAgePersonalizedAdsEligible", result.isAgePersonalizedAdsEligible());
-
-                } catch (JSONException e) {
-                    sendError(callbackContext,
-                            "JSON_BUILD_ERROR",
-                            "Failed to build JSON response: " + e.getMessage());
-                    return;
-                }
-
-                sendSuccess(callbackContext, response);
+        task.addOnSuccessListener(activity, result -> {
+            if (result == null) {
+                sendError(callbackContext, "NULL_RESULT", "AgeSignalsResult was null");
+                return;
             }
 
-            @Override
-            public void onFailure(AgeSignalsException e) {
-                JSONObject error = new JSONObject();
-                try {
-                    error.put("code", e.getErrorCode());
-                    error.put("type", "AgeSignalsException");
-                    error.put("message", e.getMessage());
-                } catch (JSONException jsonException) {
-                    sendError(callbackContext,
-                            "AGE_SIGNALS_EXCEPTION",
-                            "AgeSignalsException (code " + e.getErrorCode() + "): " + e.getMessage());
-                    return;
-                }
-                sendError(callbackContext, error);
+            JSONObject response = new JSONObject();
+            try {
+                putNullable(response, "ageLower", result.ageLower());
+                putNullable(response, "ageUpper", result.ageUpper());
+                putNullable(response, "installId", result.installId());
+
+                Date approvalDate = result.mostRecentApprovalDate();
+                response.put("mostRecentApprovalDate", approvalDate != null ? approvalDate.getTime() : JSONObject.NULL);
+
+                // Most important field
+                putUserStatus(response, result.userStatus());
+
+            } catch (JSONException e) {
+                sendError(callbackContext, "JSON_BUILD_ERROR", "Failed to build JSON response: " + e.getMessage());
+                return;
             }
 
-            @Override
-            public void onFailure(Throwable t) {
-                JSONObject error = new JSONObject();
+            sendSuccess(callbackContext, response);
+        });
+
+        task.addOnFailureListener(activity, e -> {
+            if (e instanceof AgeSignalsException) {
+                AgeSignalsException ase = (AgeSignalsException) e;
+                JSONObject errorObj = new JSONObject();
                 try {
-                    error.put("code", "UNKNOWN_ERROR");
-                    error.put("type", t.getClass().getSimpleName());
-                    error.put("message", t.getMessage());
-                } catch (JSONException jsonException) {
-                    sendError(callbackContext,
-                            "UNKNOWN_ERROR",
-                            "Unexpected error: " + t.getMessage());
-                    return;
-                }
-                sendError(callbackContext, error);
+                    errorObj.put("code", ase.getErrorCode());
+                    errorObj.put("type", "AgeSignalsException");
+                    errorObj.put("message", ase.getMessage());
+                } catch (JSONException ignored) {}
+                sendError(callbackContext, errorObj);
+            } else {
+                sendError(callbackContext, "UNKNOWN_ERROR",
+                        e.getClass().getSimpleName() + ": " + e.getMessage());
             }
         });
     }
 
-    private void putNullable(JSONObject obj, String key, Object value) throws JSONException {
-        if (value == null) {
-            obj.put(key, JSONObject.NULL);
-        } else {
-            obj.put(key, value);
+    private void putUserStatus(JSONObject obj, Integer statusCode) throws JSONException {
+        String statusStr = null;
+        if (statusCode != null) {
+            switch (statusCode) {
+                case AgeSignalsVerificationStatus.VERIFIED:
+                    statusStr = "VERIFIED";
+                    break;
+                case AgeSignalsVerificationStatus.DECLARED:
+                    statusStr = "DECLARED";
+                    break;
+                case AgeSignalsVerificationStatus.SUPERVISED:
+                    statusStr = "SUPERVISED";
+                    break;
+                case AgeSignalsVerificationStatus.SUPERVISED_APPROVAL_PENDING:
+                    statusStr = "SUPERVISED_APPROVAL_PENDING";
+                    break;
+                case AgeSignalsVerificationStatus.SUPERVISED_APPROVAL_DENIED:
+                    statusStr = "SUPERVISED_APPROVAL_DENIED";
+                    break;
+                case AgeSignalsVerificationStatus.UNKNOWN:
+                    statusStr = "UNKNOWN";
+                    break;
+                default:
+                    statusStr = "UNKNOWN";
+            }
         }
+        putNullable(obj, "userStatus", statusStr);
+    }
+
+    private void putNullable(JSONObject obj, String key, Object value) throws JSONException {
+        obj.put(key, value == null ? JSONObject.NULL : value);
     }
 
     private void sendSuccess(final CallbackContext callbackContext, final JSONObject response) {
-        Activity activity = cordova.getActivity();
-        if (activity == null) return;
-
-        activity.runOnUiThread(() -> callbackContext.success(response));
+        runOnUiThreadIfAvailable(() -> callbackContext.success(response));
     }
 
     private void sendError(final CallbackContext callbackContext, final JSONObject error) {
-        Activity activity = cordova.getActivity();
-        if (activity == null) return;
-
-        activity.runOnUiThread(() -> callbackContext.error(error));
+        runOnUiThreadIfAvailable(() -> callbackContext.error(error));
     }
 
     private void sendError(final CallbackContext callbackContext, final String code, final String message) {
@@ -154,19 +159,16 @@ public class AgeSignalsPlugin extends CordovaPlugin {
         try {
             error.put("code", code);
             error.put("message", message);
+            sendError(callbackContext, error);
         } catch (JSONException ignored) {
-            Activity activity = cordova.getActivity();
-            if (activity == null) return;
-
-            activity.runOnUiThread(() -> callbackContext.error(code + ": " + message));
-            return;
+            runOnUiThreadIfAvailable(() -> callbackContext.error(code + ": " + message));
         }
-        sendError(callbackContext, error);
     }
 
-    private void sendUnknownActionError(String action, CallbackContext callbackContext) {
-        sendError(callbackContext,
-                "UNKNOWN_ACTION",
-                "Unknown action: " + action);
+    private void runOnUiThreadIfAvailable(Runnable runnable) {
+        Activity activity = cordova.getActivity();
+        if (activity != null) {
+            activity.runOnUiThread(runnable);
+        }
     }
 }

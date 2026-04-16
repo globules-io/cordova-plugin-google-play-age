@@ -1,25 +1,25 @@
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
         id="@globules-io/cordova-plugin-google-play-age"
-        version="0.1.0">
-     <name>cordova-plugin-google-play-age</name>
-     <description>Cordova plugin for Google Play Age Signals API (Android)</description>
-     <license>MIT</license>
-     <keywords>cordova,age,signals,google,play</keywords>
-     <author email="info@globules.io">globules.io</author>
-     <repository url="https://github.com/globules-io/cordova-plugin-google-play-age.git" />
-     <engines>
-          <engine name="cordova" version=">=10.0.0" />
-     </engines>
-     <platform name="android">
-          <framework src="com.google.android.play:age-signals:0.0.2" type="gradleReference" />
-          <source-file src="src/android/AgeSignalsPlugin.java" target-dir="io/globules/agesignals" />
-          <config-file target="res/xml/config.xml" parent="/*">
-               <feature name="AgeSignalsPlugin">
-                    <param name="android-package" value="io.globules.agesignals.AgeSignalsPlugin" />
-               </feature>
-          </config-file>
-     </platform>
-     <js-module src="www/AgeSignalsPlugin.js" name="AgeSignalsPlugin">
-          <clobbers target="AgeSignalsPlugin" />
-     </js-module>
+        version="0.2.0">
+    <name>cordova-plugin-google-play-age</name>
+    <description>Cordova plugin for Google Play Age Signals API (Android only)</description>
+    <license>MIT</license>
+    <keywords>cordova, android, age, signals, google, play, verification, supervised</keywords>
+    <author email="info@globules.io">globules.io</author>
+    <repository url="https://github.com/globules-io/cordova-plugin-google-play-age.git" />
+    <engines>
+        <engine name="cordova" version=">=10.0.0" />
+    </engines>
+    <platform name="android">
+        <framework src="com.google.android.play:age-signals:0.0.3" type="gradleReference" />
+        <source-file src="src/android/AgeSignalsPlugin.java" target-dir="io/globules/cordova/googleplayage" />
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="AgeSignalsPlugin">
+                <param name="android-package" value="io.globules.cordova.googleplayage.AgeSignalsPlugin" />
+            </feature>
+        </config-file>
+    </platform>
+    <js-module src="www/AgeSignalsPlugin.js" name="AgeSignalsPlugin">
+        <clobbers target="AgeSignalsPlugin" />
+    </js-module>
 </plugin>
