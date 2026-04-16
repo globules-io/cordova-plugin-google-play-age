@@ -8,7 +8,7 @@
      "license": "MIT",
      "repository": {
           "type": "git",
-          "url": "https://github.com/globules-io/cordova-plugin-google-play-age"
+          "url": "git+https://github.com/globules-io/cordova-plugin-google-play-age.git"
      },
      "cordova": {
           "id": "cordova-plugin-google-play-age",
