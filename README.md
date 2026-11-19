@@ -1,96 +1,139 @@
 # cordova-plugin-google-play-age
-Google Play Age Signals Cordova Plugin
-https://developer.android.com/google/play/age-signals/use-age-signals-api
 
-### Add the plugin 
+Cordova plugin for the Google Play Age Signals API on Android.
+
+https://developer.android.com/google/play/age-signals/request-age-signals
+
+Uses `com.google.android.play:age-signals:0.0.4`. `checkAgeSignals()` requests access first, which can show Play's in-app age-sharing prompt, then reads the signals when the user has shared them.
+
+### Add the plugin
+
 > cordova plugin add @globules-io/cordova-plugin-google-play-age
 
-### Remove the plugin 
+### Remove the plugin
+
 > cordova plugin rm @globules-io/cordova-plugin-google-play-age
 
 ### Usage
-    AgeSignalsPlugin.checkAgeSignals(
-        function(result) {
-            console.log('Age Status:', result.userStatus); // e.g., "VERIFIED"
-            if (result.userStatus === 'SUPERVISED_APPROVAL_DENIED') {
-                // Handle denial, e.g., restrict access
-            }
-            // Use ageLower/ageUpper for supervised users
-        },
-        function(error) {
-            var code = parseInt(error);
-            // Handle errors (see table below)
-            if (code === -9) {
-                alert('Please install the app from Google Play.');
-            }
+
+```javascript
+AgeSignalsPlugin.checkAgeSignals(
+    function(result) {
+        if (result.ageSignalsStatus === 'VERIFICATION_REQUIRED') {
+            // Ask the user to resolve their age in the Play Store.
+            return;
         }
-    );
+        if (result.ageSignalsStatus !== 'SHARED') {
+            // NOT_SHARED or UNSPECIFIED: Play did not return a band.
+            return;
+        }
 
+        // ageLower is inclusive. ageUpper is inclusive, or null for the open top band (for example 18+).
+        console.log(result.ageLower, result.ageUpper, result.ageRangeSource);
+    },
+    function(error) {
+        // error.code is a Play error number, or a string for plugin errors.
+        console.error(error.code, error.message);
+    }
+);
+```
 
-## Response Codes
-> Values for userStatus
+## Response
 
-#### VERIFIED	
-> The user is over 18. Google verified the user's age using a commercially reasonable method such as a government-issued ID, credit card, or facial age estimation.
+`checkAgeSignals` resolves on every completed Play response, including when the user does not share. It rejects only when the API call fails.
 
-#### SUPERVISED	
-> The user has a supervised Google Account managed by a parent who sets their age. Use ageLower and ageUpper to determine the user's age range.
+| Field | Values |
+| --- | --- |
+| `ageSignalsStatus` | `SHARED`, `NOT_SHARED`, `VERIFICATION_REQUIRED`, `UNSPECIFIED` |
+| `ageLower` | Inclusive lower bound, `0` to `18`, or `null` |
+| `ageUpper` | Inclusive upper bound, `2` to `18`, or `null` for the open top band |
+| `ageRangeSource` | `TIER_A`, `TIER_B`, `TIER_C`, `TIER_D`, or `null` |
+| `significantChangeStatus` | `APPROVED`, `PENDING`, `DECLINED`, or `null` |
+| `significantChangeApprovalDate` | Milliseconds since epoch, or `null` |
+| `installId` | Play install id for a supervised install, or `null` |
 
-#### SUPERVISED_APPROVAL_PENDING	
-> The user has a supervised Google Account, and their supervising parent has not yet approved one or more pending significant changes. Use ageLower and ageUpper to determine the user's age range. Use mostRecentApprovalDate to determine the last significant change that was approved.
+`ageLower`, `ageUpper`, and `ageRangeSource` are `null` unless `ageSignalsStatus` is `SHARED`.
 
-#### SUPERVISED_APPROVAL_DENIED	
-> The user has a supervised Google Account, and their supervising parent denied approval for one or more significant changes. Use ageLower and ageUpper to determine the user's age range. Use mostRecentApprovalDate to determine the last significant change that was approved.
+### ageSignalsStatus
 
-#### UNKNOWN	
-> The user is not verified or supervised in applicable jurisdictions and regions. These users could be over or under 18. To obtain an age signal from Google Play, ask the user to visit the Play Store to resolve their status.
+#### SHARED
 
-#### Empty (a blank value)	
-> userStatus is unknown or empty.
+The user or parent shared an age range, or the user is in a region where Play shares it. Read `ageLower` and `ageUpper`.
 
-#### ageLower	
-> 0 to 18	The (inclusive) lower bound of a supervised user's age range. Use the ageLower and ageUpper to determine the user's age range.
-> Empty (a blank value) userStatus is unknown or empty.
+#### NOT_SHARED
 
-#### ageUpper	
-> 2 to 18	The (inclusive) upper bound of a supervised user's age range. Use the ageLower and ageUpper to determine the user's age range.
-> Empty (a blank value)	Either the userStatus is supervised and the user's parent attested age is over 18. Or the userStatus is verified, unknown, or empty.
+The user or parent did not share. Play returns no band.
 
-#### mostRecentApprovalDate	Datestamp	
-> The effective from date of the most recent significant change that was approved. When an app is installed, the date of the most recent significant change prior to install is used.
-> Empty (a blank value)	Either the userStatus is supervised and no significant change has been submitted. Or userStatus is verified, unknown, or empty.
+#### VERIFICATION_REQUIRED
 
-#### installID	Play-generated alphanumeric ID.	
-> An ID assigned to supervised user installs by Google Play, used for the purposes of notifying you of revoked app approval. Review the documentation for revoked app approvals.
-> Empty (a blank value)	userStatus is verified, unknown, or empty.
+The user is in a region where age verification is mandatory and has not finished it. Ask them to resolve their status in the Play Store. Play returns no band.
 
-## Error Codes
-#### API_NOT_AVAILABLE : -1	
-> The Play Age Signals API is not available. The Play Store app version installed on the device might be old.
+#### UNSPECIFIED
 
-#### PLAY_STORE_NOT_FOUND : -2	
-> No Play Store app is found on the device. Ask the user to install or enable the Play Store.
+Play did not return a status. Treat this the same as `NOT_SHARED`.
 
-#### NETWORK_ERROR : -3	
-> No available network is found. Ask the user to check for a connection.
+### ageRangeSource
 
-#### PLAY_SERVICES_NOT_FOUND : -4
-> Play Services is not available or its version is too old. Ask the user to install, update, or enable Play Services.
+Returned with a `SHARED` band.
 
-#### CANNOT_BIND_TO_SERVICE : -5
-> Binding to the service in the Play Store has failed. This can be due to having an old Play Store version installed on the device or device memory is overloaded. Ask the user to update the Play Store app. Retry with an exponential backoff.
+#### TIER_A
 
-#### PLAY_STORE_VERSION_OUTDATED : -6	
-> The Play Store app needs to be updated. Ask the user to update the Play Store app.
+The user provided their age to Google. Google may not have confirmed it.
 
-#### PLAY_SERVICES_VERSION_OUTDATED : -7
-> Play Services needs to be updated. Ask the user to update Play Services.
+#### TIER_B
 
-#### CLIENT_TRANSIENT_ERROR : -8	
-> 	There was a transient error in the client device. Implement a retry strategy with a maximum number of attempts as an exit condition. If the issue still doesn't resolve, ask the user to try again later.
+A parent or guardian manages the user's age.
 
-#### APP_NOT_OWNED : -9
-> The app was not installed by Google Play. Ask the user to get your app from Google Play.
+#### TIER_C
 
-#### INTERNAL_ERROR : -100
-> Unknown internal error. Implement a retry strategy with a maximum number of attempts as an exit condition. If the issue still doesn't resolve, ask the user to try again later. If it fails consistently, contact Google Play Developer support, include Play Age Signals API in the subject, and include as much technical detail as possible (such as a bug report).
+Age was assessed with a credit card, email address, selfie, government ID, or tax ID. Play returns this in regions where verification is mandatory.
+
+#### TIER_D
+
+Age was checked with a government ID plus a selfie, or with a digital ID. Play returns this in regions where verification is mandatory.
+
+### significantChangeStatus
+
+Set only where significant-change approval applies, and only for a supervised account that has a recorded change.
+
+#### APPROVED
+
+The latest significant change, and every earlier one, is approved. `significantChangeApprovalDate` is the effective date of the latest approved change.
+
+#### PENDING
+
+A parent has not approved one or more pending significant changes.
+
+#### DECLINED
+
+A parent denied one or more significant changes.
+
+## Error object
+
+Play failures use a numeric `code`. Plugin failures use a string `code` such as `NO_ACTIVITY` or `MANAGER_CREATION_FAILED`.
+
+```javascript
+{
+    "code": -9,
+    "type": "AgeSignalsException",
+    "message": "..."
+}
+```
+
+| Code | Name | Meaning |
+| --- | --- | --- |
+| -1 | `API_NOT_AVAILABLE` | Play Age Signals is unavailable. The installed Play Store may be too old. |
+| -2 | `PLAY_STORE_NOT_FOUND` | No Play Store app is on the device. |
+| -3 | `NETWORK_ERROR` | No network. |
+| -4 | `PLAY_SERVICES_NOT_FOUND` | Play services is missing or too old. |
+| -5 | `CANNOT_BIND_TO_SERVICE` | Binding to the Play Store service failed. |
+| -6 | `PLAY_STORE_VERSION_OUTDATED` | The Play Store app needs an update. |
+| -7 | `PLAY_SERVICES_VERSION_OUTDATED` | Play services needs an update. |
+| -8 | `CLIENT_TRANSIENT_ERROR` | Transient client error. Retry with a limit. |
+| -9 | `APP_NOT_OWNED` | The app was not installed by Google Play. |
+| -10 | `SDK_VERSION_OUTDATED` | This Play Age Signals SDK is no longer accepted. |
+| -100 | `INTERNAL_ERROR` | Unknown Play error. Retry with a limit. |
+
+## Library
+
+`0.0.4` removes `userStatus` and `mostRecentApprovalDate`. Sharing status is `ageSignalsStatus`. The band source is `ageRangeSource`. Significant-change approval is `significantChangeStatus` and `significantChangeApprovalDate`.
