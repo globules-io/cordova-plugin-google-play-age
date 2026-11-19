@@ -1,6 +1,6 @@
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
         id="@globules-io/cordova-plugin-google-play-age"
-        version="0.2.0">
+        version="0.3.0">
     <name>cordova-plugin-google-play-age</name>
     <description>Cordova plugin for Google Play Age Signals API (Android only)</description>
     <license>MIT</license>
@@ -11,7 +11,7 @@
         <engine name="cordova" version=">=10.0.0" />
     </engines>
     <platform name="android">
-        <framework src="com.google.android.play:age-signals:0.0.3" type="gradleReference" />
+        <framework src="com.google.android.play:age-signals:0.0.4" type="gradleReference" />
         <source-file src="src/android/AgeSignalsPlugin.java" target-dir="io/globules/cordova/googleplayage" />
         <config-file target="res/xml/config.xml" parent="/*">
             <feature name="AgeSignalsPlugin">
